@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	actionInterval = 10.0
-	maxSpeed       = 100 * 1024 * 1024
+	actionInterval = 10.0  // rm 1-chunk per 10ms
+	maxSpeed       = 100 * 1024 * 1024  // useless now
 )
 
 var speed float64
