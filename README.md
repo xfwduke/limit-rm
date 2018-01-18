@@ -1,6 +1,7 @@
 # limit-rm
 speed controlled rm
 
+```
 go build ./
 
 Usage:
@@ -12,3 +13,4 @@ Application Options:
 
 Help Options:
   -h, --help   Show this help message
+```
