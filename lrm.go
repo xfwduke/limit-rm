@@ -8,6 +8,9 @@ import (
 	"strings"
 	"strconv"
 	"./limitRM"
+	"gopkg.in/cheggaaa/pb.v1"
+	"time"
+	"context"
 )
 
 var speed float64
@@ -58,10 +61,42 @@ func init() {
 
 func main() {
 	for _, filePath := range opts.Args.FilePaths {
-		if opts.Detail {
-			fmt.Println(filePath)
+		progress := make(chan int64/*, 100*/)
+
+		file, err := os.OpenFile(filePath, os.O_RDWR, 0777)
+		if err != nil {
+			panic(err)
 		}
-		err := limitRM.RM(filePath, speed, opts.Detail)
+		fileStat, err := file.Stat()
+		if err != nil {
+			panic(err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		bar := pb.New64(fileStat.Size())
+		bar.SetRefreshRate(10 * time.Millisecond)
+		bar.SetMaxWidth(80)
+		bar.SetUnits(pb.U_BYTES)
+		bar.ShowSpeed = true
+
+		file.Close()
+
+		if opts.Detail {
+			go func(string, *pb.ProgressBar, chan int64) {
+				fmt.Println(filePath)
+				bar.Start()
+				defer func() {
+					bar.Finish()
+					cancel()
+				}()
+				for p := range progress {
+					bar.Add64(p)
+				}
+			}(filePath, bar, progress)
+		}
+
+		err = limitRM.RM(ctx, filePath, speed, progress)
 		if err != nil {
 			panic(err)
 		}

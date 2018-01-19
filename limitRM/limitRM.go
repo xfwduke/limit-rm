@@ -2,8 +2,8 @@ package limitRM
 
 import (
 	"time"
-	"gopkg.in/cheggaaa/pb.v1"
 	"os"
+	"context"
 )
 
 const (
@@ -11,8 +11,7 @@ const (
 	maxSpeed       = 100 * 1024 * 1024 // useless now
 )
 
-
-func RM(filePath string, speed float64, detail bool) error {
+func RM(ctx context.Context, filePath string, speed float64, progress chan int64) error {
 	chunkSize := int64(speed * actionInterval / 1000)
 	if chunkSize < 1 {
 		chunkSize = 1
@@ -39,39 +38,40 @@ func RM(filePath string, speed float64, detail bool) error {
 		return err
 	}
 
-	fileOrgSize := fileStat.Size()
-	truncateSize := fileOrgSize
-
-	bar := pb.New64(truncateSize)
-	bar.SetRefreshRate(actionInterval * time.Millisecond)
-	bar.SetMaxWidth(80)
-	bar.SetUnits(pb.U_BYTES)
-	bar.ShowSpeed = true
-	if detail {
-		bar.Start()
-	}
-
-	for ; truncateSize > chunkSize; {
+	for ; fileStat.Size() > chunkSize; {
 		<-token
 
-		if detail {
-			bar.Add64(chunkSize)
-		}
-		truncateSize -= chunkSize
-		err = file.Truncate(truncateSize)
+		fileStat, err = file.Stat()
 		if err != nil {
 			return err
 		}
+
+		if fileStat.Size()-chunkSize <= 0 {
+			break
+		}
+
+		err = file.Truncate(fileStat.Size() - chunkSize)
+		if err != nil {
+			return err
+		}
+
+		progress <- chunkSize
 	}
-	if detail {
-		bar.Add64(truncateSize)
+
+	fileStat, err = file.Stat()
+	if err != nil {
+		return err
 	}
+
+	progress <- fileStat.Size()
 	err = os.Remove(filePath)
 	if err != nil {
 		return err
 	}
-	if detail {
-		bar.Finish()
+
+	close(progress)
+	select {
+	case <-ctx.Done():
 	}
 	return nil
 }
